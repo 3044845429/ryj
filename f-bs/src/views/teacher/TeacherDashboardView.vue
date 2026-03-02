@@ -299,10 +299,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="teacher-dashboard">
-    <div class="teacher-dashboard__aurora" />
-    
-    <!-- 顶部导航 -->
+  <div class="teacher-page">
+    <div class="dashboard-aurora" aria-hidden="true" />
+
     <nav class="teacher-nav">
       <div class="nav-container">
         <div class="nav-logo">
@@ -311,26 +310,26 @@ onMounted(() => {
         </div>
         <div class="nav-links">
           <router-link to="/teacher/overview" class="nav-link" active-class="active">
-            <span class="link-icon">📊</span>
-            <span>仪表板</span>
+            <span class="link-icon">📊</span><span>仪表板</span>
           </router-link>
           <router-link to="/teacher/guidance" class="nav-link" active-class="active">
-            <span class="link-icon">📝</span>
-            <span>指导记录</span>
+            <span class="link-icon">📝</span><span>指导记录</span>
           </router-link>
           <router-link to="/teacher/statistics" class="nav-link" active-class="active">
-            <span class="link-icon">📈</span>
-            <span>统计分析</span>
+            <span class="link-icon">📈</span><span>统计分析</span>
+          </router-link>
+          <router-link to="/teacher/approvals" class="nav-link" active-class="active">
+            <span class="link-icon">✅</span><span>档案审核</span>
           </router-link>
           <router-link to="/teacher/profile" class="nav-link" active-class="active">
-            <span class="link-icon">🧑‍🏫</span>
-            <span>教师信息</span>
+            <span class="link-icon">👤</span><span>教师信息</span>
           </router-link>
         </div>
       </div>
     </nav>
 
-    <div class="teacher-dashboard__container">
+    <main class="teacher-body dashboard-body">
+      <div class="body-inner">
       <div class="dashboard-header">
         <div class="section-tabs">
           <button
@@ -579,7 +578,8 @@ onMounted(() => {
           </div>
         </div>
       </template>
-    </div>
+      </div>
+    </main>
 
     <transition name="modal">
       <div v-if="reviewDialog.visible" class="review-modal" @click.self="closeReviewDialog">
@@ -603,110 +603,21 @@ onMounted(() => {
     </transition>
   </div>
 </template>
+<style src="@/assets/teacher-layout.css"></style>
 <style scoped>
-/* 顶部导航栏 */
-.teacher-nav {
+.dashboard-aurora {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.nav-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-}
-
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: #1e293b;
-}
-
-.logo-icon {
-  font-size: 1.5rem;
-}
-
-.nav-links {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
-  border-radius: 10px;
-  color: #64748b;
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.nav-link:hover {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.nav-link.active {
-  color: #3b82f6;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(99, 102, 241, 0.12));
-}
-
-.nav-link.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 2px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 2px;
-}
-
-.link-icon {
-  font-size: 1.1rem;
-}
-
-.teacher-dashboard {
-  position: relative;
-  min-height: 100vh;
-  padding: calc(56px + 3rem) 0 6rem;
-  background: radial-gradient(circle at 8% 15%, rgba(79, 172, 254, 0.15), transparent 50%),
-    radial-gradient(circle at 92% 10%, rgba(99, 102, 241, 0.12), transparent 50%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-}
-
-.teacher-dashboard__aurora {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(30, 64, 175, 0.12), rgba(236, 72, 153, 0.08));
-  filter: blur(80px);
-  opacity: 0.8;
+  height: 360px;
+  background: linear-gradient(180deg, rgba(0, 113, 227, 0.06) 0%, transparent 65%);
   pointer-events: none;
+  z-index: 0;
 }
 
-.teacher-dashboard__container {
-  position: relative;
-  z-index: 1;
-  width: min(1180px, 92vw);
+.dashboard-body .body-inner {
+  max-width: 1200px;
   margin: 0 auto;
 }
 

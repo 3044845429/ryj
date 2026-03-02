@@ -12,6 +12,7 @@ import StudentApplicationsView from '../views/student/StudentApplicationsView.vu
 import StudentInterviewsView from '../views/student/StudentInterviewsView.vue'
 import StudentIntentionView from '../views/student/StudentIntentionView.vue'
 import StudentJobBoardView from '../views/student/StudentJobBoardView.vue'
+import StudentGuidanceView from '../views/student/StudentGuidanceView.vue'
 
 // 企业专区页面
 import EmployerOverviewView from '../views/employer/EmployerOverviewView.vue'
@@ -28,6 +29,14 @@ import TeacherStatisticsView from '../views/teacher/TeacherStatisticsView.vue'
 import TeacherApprovalsView from '../views/teacher/TeacherApprovalsView.vue'
 import TeacherProfileView from '../views/teacher/TeacherProfileView.vue'
 import TeacherProfileApprovalDetailView from '../views/teacher/TeacherProfileApprovalDetailView.vue'
+import GuidanceResourcesView from '../views/teacher/GuidanceResourcesView.vue'
+import GuidancePoliciesView from '../views/teacher/GuidancePoliciesView.vue'
+import NotificationsView from '../views/NotificationsView.vue'
+import AdminOverviewView from '../views/admin/AdminOverviewView.vue'
+import AdminUsersView from '../views/admin/AdminUsersView.vue'
+import AdminNotificationsView from '../views/admin/AdminNotificationsView.vue'
+import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
+import AdminProfileApprovalsView from '../views/admin/AdminProfileApprovalsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -91,6 +100,22 @@ const router = createRouter({
       component: StudentJobBoardView,
       meta: { requiresAuth: true, role: 'STUDENT' },
     },
+    // 职位招聘：列表与搜索合并为同一页（/jobs/list），支持关键词与工作类型筛选
+    {
+      path: '/jobs/list',
+      name: 'jobs-list',
+      component: StudentJobBoardView,
+      meta: { requiresAuth: true, allowedRoles: ['STUDENT', 'TEACHER', 'ADMIN', 'EMPLOYER'] },
+    },
+    {
+      path: '/jobs/search',
+      redirect: () => ({ name: 'jobs-list' }),
+    },
+    {
+      path: '/jobs/my-applications',
+      name: 'jobs-my-applications',
+      redirect: () => ({ name: 'student-applications' }),
+    },
     {
       path: '/student/interviews',
       name: 'student-interviews',
@@ -101,6 +126,12 @@ const router = createRouter({
       path: '/student/intention',
       name: 'student-intention',
       component: StudentIntentionView,
+      meta: { requiresAuth: true, role: 'STUDENT' },
+    },
+    {
+      path: '/student/guidance',
+      name: 'student-guidance',
+      component: StudentGuidanceView,
       meta: { requiresAuth: true, role: 'STUDENT' },
     },
     // 企业专区路由 - 需要登录且用户角色为企业
@@ -176,6 +207,56 @@ const router = createRouter({
       name: 'teacher-profile',
       component: TeacherProfileView,
       meta: { requiresAuth: true, role: 'TEACHER' },
+    },
+    {
+      path: '/guidance/resources',
+      name: 'guidance-resources',
+      component: GuidanceResourcesView,
+      meta: { requiresAuth: true, role: 'TEACHER' },
+    },
+    {
+      path: '/guidance/policies',
+      name: 'guidance-policies',
+      component: GuidancePoliciesView,
+      meta: { requiresAuth: true, role: 'TEACHER' },
+    },
+    // 咨询动态 - 浏览网上发布的各类动态讯息，无需登录
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: NotificationsView,
+      meta: { requiresAuth: false },
+    },
+    // 管理员后台路由 - 需要登录且角色为 ADMIN
+    {
+      path: '/admin/overview',
+      name: 'admin-overview',
+      component: AdminOverviewView,
+      meta: { requiresAuth: true, role: 'ADMIN' },
+    },
+    {
+      path: '/admin/users',
+      name: 'admin-users',
+      component: AdminUsersView,
+      meta: { requiresAuth: true, role: 'ADMIN' },
+    },
+    {
+      path: '/admin/profile-approvals',
+      name: 'admin-profile-approvals',
+      component: AdminProfileApprovalsView,
+      meta: { requiresAuth: true, role: 'ADMIN' },
+    },
+    {
+      path: '/admin/notifications',
+      name: 'admin-notifications',
+      component: AdminNotificationsView,
+      meta: { requiresAuth: true, role: 'ADMIN' },
+    },
+    {
+      path: '/admin/statistics',
+      name: 'admin-statistics',
+      component: AdminStatisticsView,
+      meta: { requiresAuth: true, role: 'ADMIN' },
     },
   ],
 })

@@ -133,8 +133,12 @@ const loadJobs = async () => {
       keyword: searchForm.keyword,
     })
     if (token !== listRequestToken) return
-    jobList.value = data.records ?? []
-    totalJobs.value = data.total ?? 0
+    // 兼容多种分页返回格式：直接 Page 或 再包一层 data
+    const raw = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    const list = Array.isArray(raw.records) ? raw.records : (Array.isArray((raw.data as Record<string, unknown>)?.records) ? (raw.data as Record<string, unknown>).records : [])
+    const total = Number(raw.total) || Number((raw.data as Record<string, unknown>)?.total) || 0
+    jobList.value = list as JobPosting[]
+    totalJobs.value = total
 
     if (!jobList.value.length) {
       selectedJobId.value = null
@@ -357,7 +361,10 @@ onMounted(async () => {
     <div class="board-content">
       <aside class="job-list">
         <div v-if="loadingJobs" class="loading">正在加载职位，请稍候...</div>
-        <div v-else-if="jobError" class="feedback feedback--error">{{ jobError }}</div>
+        <div v-else-if="jobError" class="feedback feedback--error">
+          <p>{{ jobError }}</p>
+          <p class="empty-hint">请确认后端服务已启动（如 http://localhost:8080），且数据库已执行 <code>database/restore_all.sql</code>。</p>
+        </div>
         <div v-else>
           <p class="job-list__summary">共找到 {{ totalJobs }} 个职位</p>
           <div v-if="jobList.length" class="job-list__items">
@@ -378,6 +385,7 @@ onMounted(async () => {
           </div>
           <div v-else class="empty">
             <p>暂未查询到符合条件的职位，可调整筛选条件后再试。</p>
+            <p class="empty-hint">若从未导入过演示数据，请在 Navicat 中对数据库 <code>bb</code> 执行 <code>database/restore_all.sql</code> 以初始化岗位数据。</p>
           </div>
           <div v-if="totalPages > 1" class="pagination">
             <button type="button" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">上一页</button>
@@ -880,6 +888,19 @@ onMounted(async () => {
 
 .empty {
   color: #94a3b8;
+}
+
+.empty-hint {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.empty-hint code {
+  background: #f1f5f9;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.85em;
 }
 
 @media (max-width: 992px) {

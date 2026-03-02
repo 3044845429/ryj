@@ -4,12 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ryj.demo.common.ApiResponse;
 import com.ryj.demo.dto.TeacherGuidanceRequest;
+import com.ryj.demo.entity.Teacher;
 import com.ryj.demo.entity.TeacherGuidance;
+import com.ryj.demo.entity.SystemNotification;
 import com.ryj.demo.service.TeacherGuidanceService;
+import com.ryj.demo.service.TeacherService;
+import com.ryj.demo.service.SystemNotificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -18,6 +23,8 @@ import java.util.List;
 public class TeacherGuidanceController {
 
     private final TeacherGuidanceService teacherGuidanceService;
+    private final TeacherService teacherService;
+    private final SystemNotificationService notificationService;
 
     /**
      * 创建指导记录
@@ -29,6 +36,12 @@ public class TeacherGuidanceController {
         guidance.setStudentId(request.getStudentId());
         guidance.setNote(request.getNote());
         teacherGuidanceService.save(guidance);
+        if (guidance.getStudentId() != null) {
+            notifyStudentNewGuidance(guidance.getStudentId());
+        }
+        if (guidance.getTeacherId() != null) {
+            notifyTeacherNewGuidance(guidance.getTeacherId(), guidance.getStudentId());
+        }
         return ApiResponse.success(guidance);
     }
 
@@ -87,6 +100,47 @@ public class TeacherGuidanceController {
             guidance.setNote(request.getNote());
             return guidance;
         }).toList();
-        return ApiResponse.success(teacherGuidanceService.saveBatch(guidances));
+        boolean saved = teacherGuidanceService.saveBatch(guidances);
+        if (saved) {
+            for (TeacherGuidance g : guidances) {
+                if (g.getStudentId() != null) {
+                    notifyStudentNewGuidance(g.getStudentId());
+                }
+                if (g.getTeacherId() != null) {
+                    notifyTeacherNewGuidance(g.getTeacherId(), g.getStudentId());
+                }
+            }
+        }
+        return ApiResponse.success(saved);
+    }
+
+    private void notifyStudentNewGuidance(Long studentUserId) {
+        SystemNotification n = new SystemNotification();
+        n.setUserId(studentUserId);
+        n.setCategory(SystemNotification.Category.GUIDANCE);
+        n.setTitle("就业指导更新");
+        n.setContent("教师为您添加了新的就业指导记录，请及时查看。");
+        n.setReadFlag(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationService.save(n);
+    }
+
+    private void notifyTeacherNewGuidance(Long teacherId, Long studentUserId) {
+        if (teacherId == null) {
+            return;
+        }
+        Teacher teacher = teacherService.getById(teacherId);
+        if (teacher == null || teacher.getUserId() == null) {
+            return;
+        }
+
+        SystemNotification n = new SystemNotification();
+        n.setUserId(teacher.getUserId());
+        n.setCategory(SystemNotification.Category.GUIDANCE);
+        n.setTitle("新的学生就业指导记录");
+        n.setContent("有学生与您建立或更新了就业指导记录，请及时关注学生的就业进展。");
+        n.setReadFlag(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationService.save(n);
     }
 }

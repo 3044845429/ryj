@@ -1,18 +1,27 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { getUnreadNotificationCount, getUserNotifications, markAllNotificationsAsRead } from '@/api/notification'
+import type { SystemNotification } from '@/api/notification'
 
 const router = useRouter()
+const route = useRoute()
 const showUserMenu = ref(false)
 const userMenuRef = ref<HTMLElement | null>(null)
+const showNoticePopover = ref(false)
+const noticeRef = ref<HTMLElement | null>(null)
+const noticeList = ref<SystemNotification[]>([])
+const noticeLoading = ref(false)
 const isLoggedIn = ref(false)
-const currentUser = ref<{ username?: string; fullName?: string; role?: string } | null>(null)
+const currentUser = ref<{ id?: number; userId?: number; username?: string; fullName?: string; role?: string } | null>(null)
 const showLoginDialog = ref(false)
 const targetRoute = ref('')
+const unreadCount = ref(0)
 const currentRole = computed(() => currentUser.value?.role ?? null)
 const isStudentRole = computed(() => currentRole.value === 'STUDENT')
 const isEmployerRole = computed(() => currentRole.value === 'EMPLOYER')
 const isTeacherRole = computed(() => currentRole.value === 'TEACHER')
+const isAdminRole = computed(() => currentRole.value === 'ADMIN')
 
 // 检查登录状态
 const checkLoginStatus = () => {
@@ -23,12 +32,141 @@ const checkLoginStatus = () => {
   if (userInfo) {
     try {
       currentUser.value = JSON.parse(userInfo)
+      loadUnreadCount()
     } catch (e) {
       currentUser.value = null
+      unreadCount.value = 0
     }
   } else {
     currentUser.value = null
+    unreadCount.value = 0
   }
+}
+
+// 加载未读消息数（已登录时）
+async function loadUnreadCount() {
+  const id = currentUser.value?.id ?? currentUser.value?.userId
+  if (id == null) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    unreadCount.value = await getUnreadNotificationCount(Number(id))
+  } catch {
+    unreadCount.value = 0
+  }
+}
+
+// 从通知页返回时刷新未读数；路由变化时重新检查登录并刷新未读数（解决切换用户后角标不更新）
+watch(() => route.path, (newPath, oldPath) => {
+  if (oldPath === '/notifications' && newPath !== '/notifications' && isLoggedIn.value) {
+    loadUnreadCount()
+  }
+  // 每次路由变化都重新读一次登录状态与未读数，确保切换为教师后能看到待处理提示
+  checkLoginStatus()
+})
+
+// 点击消息铃铛：弹出待处理信息列表，不跳转；看完后自动清除待处理提示
+async function toggleNoticePopover() {
+  showNoticePopover.value = !showNoticePopover.value
+  if (showNoticePopover.value && currentUser.value != null) {
+    const id = currentUser.value.id ?? currentUser.value.userId
+    if (id != null) {
+      noticeLoading.value = true
+      noticeList.value = []
+      try {
+        const res = await getUserNotifications(Number(id), {
+          page: 1,
+          size: 50,
+          unreadOnly: true,
+        })
+        noticeList.value = res.records || []
+        // 用户查看了待处理消息后，将其标记为已读，清除角标提示
+        if (noticeList.value.length > 0) {
+          await markAllNotificationsAsRead(Number(id))
+          unreadCount.value = 0
+        }
+      } catch {
+        noticeList.value = []
+      } finally {
+        noticeLoading.value = false
+      }
+    }
+  }
+}
+
+function closeNoticePopover() {
+  showNoticePopover.value = false
+}
+
+// 分类中文
+function noticeCategoryLabel(cat: string) {
+  const map: Record<string, string> = {
+    SYSTEM: '系统',
+    INTERVIEW: '面试',
+    APPLICATION: '申请',
+    GUIDANCE: '就业指导',
+  }
+  return map[cat] ?? cat
+}
+
+// 点击某一条待处理信息时，快速跳转到相应处理页面
+function handleNoticeItemClick(item: SystemNotification) {
+  const role = currentRole.value
+  const title = item.title || ''
+  const category = item.category
+
+  // 教师：档案审核与就业指导，优先跳到教师端相关页面
+  if (role === 'TEACHER') {
+    if (category === 'APPLICATION' && title.includes('档案')) {
+      router.push('/teacher/approvals')
+    } else if (category === 'GUIDANCE') {
+      router.push('/teacher/guidance')
+    } else if (category === 'INTERVIEW' || category === 'APPLICATION') {
+      // 面试 / 申请类通知，跳到教师仪表板查看整体情况
+      router.push('/teacher/overview')
+    } else {
+      router.push('/teacher/overview')
+    }
+    closeNoticePopover()
+    return
+  }
+
+  // 学生：求职申请、面试、就业指导
+  if (role === 'STUDENT') {
+    if (category === 'INTERVIEW') {
+      router.push('/student/interviews')
+    } else if (category === 'APPLICATION') {
+      router.push('/student/applications')
+    } else if (category === 'GUIDANCE') {
+      router.push('/student/guidance')
+    } else {
+      router.push('/student/overview')
+    }
+    closeNoticePopover()
+    return
+  }
+
+  // 企业用户：与投递 / 面试相关的提示
+  if (role === 'EMPLOYER') {
+    if (category === 'INTERVIEW') {
+      router.push('/employer/interviews')
+    } else if (category === 'APPLICATION') {
+      router.push('/employer/applications')
+    } else {
+      router.push('/employer/overview')
+    }
+    closeNoticePopover()
+    return
+  }
+
+  // 其他角色或未识别时，退回首页或资讯动态
+  if (category === 'SYSTEM') {
+    router.push('/notifications')
+  } else {
+    router.push('/home')
+  }
+  closeNoticePopover()
 }
 
 // 获取显示名称
@@ -55,6 +193,9 @@ const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as Node | null
   if (userMenuRef.value && target && !userMenuRef.value.contains(target)) {
     closeUserMenu()
+  }
+  if (noticeRef.value && target && !noticeRef.value.contains(target)) {
+    closeNoticePopover()
   }
 }
 
@@ -176,14 +317,14 @@ onUnmounted(() => {
             <RouterLink to="/student/applications" @click="(e) => handleNavClick(e, '/student/applications')">求职申请</RouterLink>
             <RouterLink to="/student/interviews" @click="(e) => handleNavClick(e, '/student/interviews')">面试管理</RouterLink>
             <RouterLink to="/student/intention" @click="(e) => handleNavClick(e, '/student/intention')">就业意向</RouterLink>
+            <RouterLink to="/student/guidance" @click="(e) => handleNavClick(e, '/student/guidance')">就业指导</RouterLink>
           </div>
         </div>
         
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" v-if="isStudentRole">
           <span class="nav-link">职位招聘 ▾</span>
           <div class="dropdown-menu">
-            <RouterLink to="/jobs/list" @click="(e) => handleNavClick(e, '/jobs/list')">职位列表</RouterLink>
-            <RouterLink to="/jobs/search" @click="(e) => handleNavClick(e, '/jobs/search')">职位搜索</RouterLink>
+            <RouterLink to="/jobs/list" @click="(e) => handleNavClick(e, '/jobs/list')">职位</RouterLink>
             <RouterLink to="/jobs/my-applications" @click="(e) => handleNavClick(e, '/jobs/my-applications')">我的申请</RouterLink>
           </div>
         </div>
@@ -204,23 +345,84 @@ onUnmounted(() => {
           <span class="nav-link">教师专区 ▾</span>
           <div class="dropdown-menu">
             <RouterLink to="/teacher/overview" @click="(e) => handleNavClick(e, '/teacher/overview')">教师仪表板</RouterLink>
+            <RouterLink to="/teacher/approvals" @click="(e) => handleNavClick(e, '/teacher/approvals')">审核学生档案</RouterLink>
             <RouterLink to="/teacher/guidance" @click="(e) => handleNavClick(e, '/teacher/guidance')">指导记录</RouterLink>
             <RouterLink to="/teacher/statistics" @click="(e) => handleNavClick(e, '/teacher/statistics')">统计分析</RouterLink>
             <RouterLink to="/teacher/profile" @click="(e) => handleNavClick(e, '/teacher/profile')">个人信息</RouterLink>
           </div>
         </div>
         
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" v-if="isTeacherRole">
           <span class="nav-link">就业指导 ▾</span>
           <div class="dropdown-menu">
-            <RouterLink to="/guidance/records" @click="(e) => handleNavClick(e, '/guidance/records')">指导记录</RouterLink>
+            <RouterLink to="/teacher/guidance" @click="(e) => handleNavClick(e, '/teacher/guidance')">指导记录</RouterLink>
             <RouterLink to="/guidance/resources" @click="(e) => handleNavClick(e, '/guidance/resources')">资源下载</RouterLink>
             <RouterLink to="/guidance/policies" @click="(e) => handleNavClick(e, '/guidance/policies')">就业政策</RouterLink>
           </div>
         </div>
         
+        <div class="nav-dropdown" v-if="isAdminRole">
+          <span class="nav-link">管理后台 ▾</span>
+          <div class="dropdown-menu">
+            <RouterLink to="/admin/overview" @click="(e) => handleNavClick(e, '/admin/overview')">管理员总览</RouterLink>
+            <RouterLink to="/admin/users" @click="(e) => handleNavClick(e, '/admin/users')">用户管理</RouterLink>
+            <RouterLink
+              to="/admin/profile-approvals"
+              @click="(e) => handleNavClick(e, '/admin/profile-approvals')"
+            >
+              资料审核
+            </RouterLink>
+            <RouterLink to="/admin/statistics" @click="(e) => handleNavClick(e, '/admin/statistics')">数据统计</RouterLink>
+            <RouterLink to="/admin/notifications" @click="(e) => handleNavClick(e, '/admin/notifications')">通知管理</RouterLink>
+          </div>
+        </div>
+        
         <RouterLink to="/notifications" class="nav-link">资讯动态</RouterLink>
       </nav>
+
+      <div class="header-right">
+        <!-- 信息提醒：点击弹出待处理信息列表，不跳转 -->
+        <div v-if="isLoggedIn" class="header-notice-wrap" ref="noticeRef">
+          <button
+            type="button"
+            class="header-notice"
+            :title="unreadCount > 0 ? `您有 ${unreadCount} 条未读消息，请及时处理` : '消息与通知'"
+            @click="toggleNoticePopover"
+          >
+            <span class="header-notice__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13 22a2 2 0 0 1-2-2"></path>
+              </svg>
+              <span v-if="unreadCount > 0" class="header-notice__badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </span>
+            <span v-if="unreadCount > 0" class="header-notice__hint">有新消息，请点击查看</span>
+          </button>
+          <transition name="dropdown">
+            <div v-if="showNoticePopover" class="notice-popover">
+              <div class="notice-popover__title">待处理信息</div>
+              <div v-if="noticeLoading" class="notice-popover__loading">加载中…</div>
+              <template v-else>
+                <div v-if="noticeList.length === 0" class="notice-popover__empty">暂无待处理消息</div>
+                <ul v-else class="notice-popover__list">
+                  <li
+                    v-for="item in noticeList"
+                    :key="item.id"
+                    class="notice-popover__item"
+                    @click="handleNoticeItemClick(item)"
+                  >
+                    <span class="notice-popover__item-cat">{{ noticeCategoryLabel(item.category) }}</span>
+                    <span class="notice-popover__item-title">{{ item.title }}</span>
+                    <p v-if="item.content" class="notice-popover__item-content">{{ item.content }}</p>
+                  </li>
+                </ul>
+              </template>
+              <div class="notice-popover__footer">
+                <router-link to="/notifications" class="notice-popover__link" @click="closeNoticePopover">前往资讯动态</router-link>
+              </div>
+            </div>
+          </transition>
+        </div>
 
       <div class="user-menu-container" ref="userMenuRef">
         <button class="user-menu-button" @click="toggleUserMenu">
@@ -279,6 +481,7 @@ onUnmounted(() => {
             </template>
           </div>
         </transition>
+      </div>
       </div>
     </header>
 
@@ -486,6 +689,170 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(139, 92, 246, 0.12));
   color: #2563eb;
   font-weight: 600;
+}
+
+/* 右上角：信息提醒 + 用户菜单 */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-notice-wrap {
+  position: relative;
+}
+
+.header-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  height: 44px;
+  border-radius: 12px;
+  color: #475569;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  position: relative;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.header-notice:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+}
+
+.header-notice:hover .header-notice__hint {
+  color: #2563eb;
+}
+
+.header-notice__icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-notice__icon svg {
+  display: block;
+}
+
+.header-notice__hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+
+.header-notice__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* 消息弹层：待处理信息列表 */
+.notice-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 320px;
+  max-width: 400px;
+  max-height: 70vh;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.notice-popover__title {
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.notice-popover__loading,
+.notice-popover__empty {
+  padding: 1.5rem 1.25rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.notice-popover__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+  overflow: auto;
+}
+
+.notice-popover__item {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.notice-popover__item:last-child {
+  border-bottom: none;
+}
+
+.notice-popover__item-cat {
+  display: inline-block;
+  font-size: 0.7rem;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 0.35rem;
+}
+
+.notice-popover__item-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.notice-popover__item-content {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notice-popover__footer {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.notice-popover__link {
+  font-size: 0.9rem;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.notice-popover__link:hover {
+  text-decoration: underline;
 }
 
 /* 用户菜单容器 */

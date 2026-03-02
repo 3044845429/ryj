@@ -5,14 +5,19 @@ import com.ryj.demo.dto.StudentProfileDetailResponse;
 import com.ryj.demo.dto.StudentProfileRequest;
 import com.ryj.demo.entity.StudentProfile;
 import com.ryj.demo.entity.StudentProfileUpdateRequest;
+import com.ryj.demo.entity.SystemNotification;
 import com.ryj.demo.entity.SysUser;
+import com.ryj.demo.entity.Teacher;
 import com.ryj.demo.service.StudentProfileService;
 import com.ryj.demo.service.StudentProfileUpdateRequestService;
 import com.ryj.demo.service.SysUserService;
+import com.ryj.demo.service.SystemNotificationService;
+import com.ryj.demo.service.TeacherService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,6 +31,8 @@ public class StudentProfileController {
     private final StudentProfileService studentProfileService;
     private final StudentProfileUpdateRequestService updateRequestService;
     private final SysUserService sysUserService;
+    private final TeacherService teacherService;
+    private final SystemNotificationService notificationService;
 
     @GetMapping("/profiles/{studentId}")
     public ApiResponse<StudentProfileDetailResponse> getProfile(@PathVariable Long studentId) {
@@ -75,7 +82,23 @@ public class StudentProfileController {
         StudentProfileUpdateRequest updateRequest = mapToRequestEntity(request);
         updateRequest.setStatus("PENDING");
         updateRequestService.save(updateRequest);
-        return ApiResponse.success("档案更新申请已提交，等待管理员审核", updateRequest);
+
+        // 给被指派的教师创建未读通知，便于在消息提醒处提示待处理
+        if (updateRequest.getHomeroomTeacherId() != null) {
+            Long teacherUserId = resolveTeacherUserId(updateRequest.getHomeroomTeacherId());
+            if (teacherUserId != null) {
+                SystemNotification notification = new SystemNotification();
+                notification.setUserId(teacherUserId);
+                notification.setCategory(SystemNotification.Category.APPLICATION);
+                notification.setTitle("学生档案待审核");
+                notification.setContent("有学生提交了个人档案更新申请，请及时处理。");
+                notification.setReadFlag(false);
+                notification.setCreatedAt(LocalDateTime.now());
+                notificationService.save(notification);
+            }
+        }
+
+        return ApiResponse.success("档案更新申请已提交，等待教师审核", updateRequest);
     }
 
     @PutMapping("/profiles/requests/{requestId}")
@@ -125,9 +148,27 @@ public class StudentProfileController {
         target.setMajor(source.getMajor());
         target.setBiography(source.getBiography());
         target.setGraduationYear(source.getGraduationYear());
-        // 新增：关联班主任ID（由前端表单传入）
+        // 新增：关联班主任ID（由前端表单传入，可能是 teacher.id 或 sys_user.id）
         if (source.getReviewerId() != null) {
             target.setHomeroomTeacherId(source.getReviewerId());
         }
+    }
+
+    /**
+     * 解析教师的 sys_user id，用于发送通知。
+     * 前端可能传 teacher 表主键 id，也可能传 sys_user id；此处两种都支持。
+     */
+    private Long resolveTeacherUserId(Long homeroomTeacherId) {
+        if (homeroomTeacherId == null) return null;
+        Teacher teacher = teacherService.getById(homeroomTeacherId);
+        if (teacher != null && teacher.getUserId() != null) {
+            return teacher.getUserId();
+        }
+        // 若 getById 未找到或 userId 为空，尝试将 homeroomTeacherId 视为 sys_user id（教师登录用 id）
+        teacher = teacherService.getByUserId(homeroomTeacherId);
+        if (teacher != null) {
+            return homeroomTeacherId;
+        }
+        return null;
     }
 }

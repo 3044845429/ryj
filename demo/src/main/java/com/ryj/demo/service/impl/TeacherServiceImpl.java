@@ -9,6 +9,7 @@ import com.ryj.demo.dto.TeacherProfileUpdateRequest;
 import com.ryj.demo.entity.*;
 import com.ryj.demo.mapper.TeacherMapper;
 import com.ryj.demo.service.*;
+import com.ryj.demo.service.*;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     private final InterviewService interviewService;
     private final EmployerService employerService;
     private final JobPostingService jobPostingService;
+    private final SystemNotificationService notificationService;
 
     public TeacherServiceImpl(
             SysUserService sysUserService,
@@ -38,7 +40,8 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
             JobApplicationService jobApplicationService,
             InterviewService interviewService,
             EmployerService employerService,
-            JobPostingService jobPostingService) {
+            JobPostingService jobPostingService,
+            SystemNotificationService notificationService) {
         this.sysUserService = sysUserService;
         this.studentProfileService = studentProfileService;
         this.profileUpdateRequestService = profileUpdateRequestService;
@@ -47,6 +50,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
         this.interviewService = interviewService;
         this.employerService = employerService;
         this.jobPostingService = jobPostingService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -472,7 +476,10 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
         if (!requestUpdated) {
             throw new RuntimeException("更新申请状态失败");
         }
-        
+
+        // 通知学生：档案审核已通过
+        notifyStudentProfileReview(request.getStudentId(), true, null);
+
         return true;
     }
 
@@ -513,8 +520,27 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
         if (!updated) {
             throw new RuntimeException("更新申请状态失败");
         }
-        
+
+        // 通知学生：档案审核已退回
+        notifyStudentProfileReview(request.getStudentId(), false, reviewComment.trim());
+
         return true;
+    }
+
+    /** 给学生发送档案审核结果通知 */
+    private void notifyStudentProfileReview(Long studentUserId, boolean approved, String comment) {
+        if (studentUserId == null) return;
+        SystemNotification n = new SystemNotification();
+        n.setUserId(studentUserId);
+        n.setCategory(SystemNotification.Category.APPLICATION);
+        n.setTitle(approved ? "档案审核已通过" : "档案审核已退回");
+        n.setContent(approved ? "您的个人档案更新申请已通过教师审核。" : "您的档案更新申请已被退回，请查看教师意见后修改再提交。");
+        if (comment != null && !comment.isEmpty()) {
+            n.setContent(n.getContent() + " 教师意见：" + comment);
+        }
+        n.setReadFlag(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationService.save(n);
     }
 
     @Override

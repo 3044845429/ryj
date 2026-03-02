@@ -148,7 +148,7 @@ const handleSubmit = async () => {
   
   // 验证必填项
   if (!profileForm.homeroomTeacherId) {
-    formError.value = '请选择班主任老师'
+    formError.value = '请选择提交给哪位教师审核'
     return
   }
   
@@ -172,7 +172,7 @@ const handleSubmit = async () => {
       formMessage.value = '已更新待审核的档案申请'
     } else {
       await submitStudentProfileRequest(payload)
-      formMessage.value = '已提交档案更新申请，等待班主任审核'
+      formMessage.value = '已提交档案更新申请，已提交至教师端等待审核'
     }
     await loadProfile(studentId.value)
   } catch (error) {
@@ -259,7 +259,7 @@ const canEdit = computed(() => !hasPending.value || isRejected.value)
     <header class="profile-header">
       <div>
         <h1>学生个人档案</h1>
-        <p>档案更新需班主任审核，审核通过后方可生效</p>
+        <p>档案更新需提交至教师端审核，审核通过后方可生效</p>
       </div>
       <div class="student-selector">
         <input v-model="studentIdInput" class="input" placeholder="输入学生ID" />
@@ -344,14 +344,14 @@ const canEdit = computed(() => !hasPending.value || isRejected.value)
                 <input v-model.number="profileForm.graduationYear" class="input" type="number" min="1900" max="2100" placeholder="如：2025" />
               </label>
               <label class="form__field">
-                <span>班主任老师（按专业匹配）</span>
+                <span>提交给哪位教师审核</span>
                 <select v-model.number="profileForm.homeroomTeacherId" class="input">
-                  <option :value="null">请选择班主任</option>
+                  <option :value="null">请选择审核教师</option>
                   <option v-for="t in homeroomTeachers" :key="t.id" :value="t.id">
                     {{ formatTeacherName(t) }}（{{ formatTeacherDept(t) }}）
                   </option>
                 </select>
-                <small v-if="teacherLoading" style="color:#6b7280;">加载可选班主任...</small>
+                <small v-if="teacherLoading" style="color:#6b7280;">加载可选审核教师...</small>
               </label>
             </div>
             <label class="form__field">

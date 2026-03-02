@@ -5,14 +5,17 @@ import {
   createEmployerInterview,
   updateEmployerInterview,
   deleteEmployerInterview,
+  fetchEmployerApplications,
   type EmployerInterviewOverview,
   type EmployerInterviewRequestPayload,
+  type EmployerApplicationOverview,
   type InterviewStatus,
 } from '../../api/employer'
 
 const userInfo = ref<{ id?: number; role?: string } | null>(null)
 const userId = ref<number | null>(null)
 const interviews = ref<EmployerInterviewOverview[]>([])
+const applications = ref<EmployerApplicationOverview[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
@@ -54,6 +57,8 @@ const resetMessage = () => {
   messageType.value = ''
 }
 
+const selectedApplicationId = ref<string>('')
+
 const resetForm = () => {
   editingId.value = null
   form.jobId = ''
@@ -63,6 +68,7 @@ const resetForm = () => {
   form.meetingLink = ''
   form.status = 'SCHEDULED'
   form.feedback = ''
+  selectedApplicationId.value = ''
 }
 
 const fillForm = (interview: EmployerInterviewOverview) => {
@@ -74,6 +80,7 @@ const fillForm = (interview: EmployerInterviewOverview) => {
   form.meetingLink = interview.meetingLink || ''
   form.status = interview.status || 'SCHEDULED'
   form.feedback = interview.feedback || ''
+  selectedApplicationId.value = interview.applicationId ? String(interview.applicationId) : ''
 }
 
 const loadInterviews = async () => {
@@ -104,13 +111,36 @@ const loadInterviews = async () => {
   }
 }
 
+const loadApplications = async () => {
+  if (!userId.value) return
+  try {
+    const result = await fetchEmployerApplications(userId.value)
+    applications.value = result
+  } catch (err) {
+    console.warn('加载企业应聘记录失败（用于安排面试选择候选人）:', err)
+  }
+}
+
 const toPayload = (): EmployerInterviewRequestPayload => {
+  // 如果选择了应聘学生，则根据所选申请自动填充 jobId / applicationId
+  if (selectedApplicationId.value) {
+    const app = applications.value.find((a) => a.id === Number(selectedApplicationId.value))
+    if (!app) {
+      throw new Error('所选应聘记录不存在或已失效，请刷新后重试')
+    }
+    if (!app.jobId) {
+      throw new Error('所选应聘记录缺少岗位信息')
+    }
+    form.jobId = String(app.jobId)
+    form.applicationId = String(app.id)
+  }
+
   // 验证必填字段
   if (!form.jobId || isNaN(Number(form.jobId))) {
-    throw new Error('请输入有效的岗位ID')
+    throw new Error('请选择应聘的学生，或输入有效的岗位ID')
   }
   if (!form.applicationId || isNaN(Number(form.applicationId))) {
-    throw new Error('请输入有效的申请ID')
+    throw new Error('请选择应聘的学生，或输入有效的申请ID')
   }
   if (!form.scheduledTime) {
     throw new Error('请选择面试时间')
@@ -255,6 +285,7 @@ onMounted(() => {
     return
   }
   loadInterviews()
+  loadApplications()
 })
 </script>
 
@@ -367,14 +398,40 @@ onMounted(() => {
         <div class="form-content">
           <div class="form-section">
             <h3 class="section-title">基本信息</h3>
+            <label class="form-field">
+              <span class="field-label">选择应聘学生 <span class="required">*</span></span>
+              <select v-model="selectedApplicationId" :disabled="saving">
+                <option value="">从应聘记录中选择候选人</option>
+                <option
+                  v-for="app in applications"
+                  :key="app.id"
+                  :value="String(app.id)"
+                >
+                  {{ app.candidateName || '候选人' }} — {{ app.jobTitle || '岗位未知' }}（{{ app.status }}）
+                </option>
+              </select>
+              <p class="field-hint">
+                列表来自“应聘管理”中的投递记录，选择后岗位ID与申请ID将自动填充。
+              </p>
+            </label>
             <div class="inline-group">
               <label class="form-field">
                 <span class="field-label">岗位ID <span class="required">*</span></span>
-                <input v-model="form.jobId" type="number" placeholder="输入岗位ID" :disabled="saving" />
+                <input
+                  v-model="form.jobId"
+                  type="number"
+                  placeholder="自动根据所选候选人填充，或手动输入"
+                  :disabled="saving"
+                />
               </label>
               <label class="form-field">
                 <span class="field-label">申请ID <span class="required">*</span></span>
-                <input v-model="form.applicationId" type="number" placeholder="输入申请ID" :disabled="saving" />
+                <input
+                  v-model="form.applicationId"
+                  type="number"
+                  placeholder="自动根据所选候选人填充，或手动输入"
+                  :disabled="saving"
+                />
               </label>
             </div>
           </div>

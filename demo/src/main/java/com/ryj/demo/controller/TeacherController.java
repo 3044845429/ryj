@@ -7,7 +7,13 @@ import com.ryj.demo.dto.TeacherDashboardResponse;
 import com.ryj.demo.dto.TeacherProfileApprovalDetail;
 import com.ryj.demo.dto.TeacherProfileResponse;
 import com.ryj.demo.dto.TeacherProfileUpdateRequest;
+import com.ryj.demo.entity.ProfileUpdateRequest;
+import com.ryj.demo.entity.SysUser;
+import com.ryj.demo.entity.SystemNotification;
 import com.ryj.demo.entity.Teacher;
+import com.ryj.demo.service.ProfileUpdateRequestService;
+import com.ryj.demo.service.SysUserService;
+import com.ryj.demo.service.SystemNotificationService;
 import com.ryj.demo.service.TeacherService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +28,9 @@ import java.util.Map;
 public class TeacherController {
 
     private final TeacherService teacherService;
+    private final ProfileUpdateRequestService profileUpdateRequestService;
+    private final SysUserService sysUserService;
+    private final SystemNotificationService notificationService;
 
     @PostMapping
     public ApiResponse<Teacher> create(@Valid @RequestBody Teacher teacher) {
@@ -32,7 +41,47 @@ public class TeacherController {
 
     @PutMapping("/{id}")
     public ApiResponse<Boolean> update(@PathVariable Long id, @Valid @RequestBody TeacherProfileUpdateRequest request) {
-        return ApiResponse.success(teacherService.updateProfile(id, request));
+        // 通过教师ID找到对应的用户ID
+        Teacher teacher = teacherService.getById(id);
+        if (teacher == null || teacher.getUserId() == null) {
+            return ApiResponse.failure(404, "未找到对应的教师记录，无法提交资料更新申请");
+        }
+
+        SysUser user = sysUserService.getById(teacher.getUserId());
+        if (user == null || user.getRole() != SysUser.Role.TEACHER) {
+            return ApiResponse.failure(403, "当前账号不是教师角色，无法提交教师资料更新申请");
+        }
+
+        // 检查是否已有待审核记录
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProfileUpdateRequest> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProfileUpdateRequest>()
+                        .eq(ProfileUpdateRequest::getUserId, user.getId())
+                        .eq(ProfileUpdateRequest::getRole, "TEACHER")
+                        .eq(ProfileUpdateRequest::getStatus, "PENDING");
+        ProfileUpdateRequest existing = profileUpdateRequestService.getOne(wrapper);
+        if (existing != null) {
+            return ApiResponse.failure(400, "已有待审核的教师资料更新申请，请等待管理员审核后再提交新的修改");
+        }
+
+        // 将请求序列化为 JSON 存入 payload
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String payload = mapper.writeValueAsString(request);
+
+            ProfileUpdateRequest record = new ProfileUpdateRequest();
+            record.setUserId(user.getId());
+            record.setRole("TEACHER");
+            record.setPayload(payload);
+            record.setStatus("PENDING");
+            profileUpdateRequestService.save(record);
+
+            // 给所有管理员发送系统通知
+            notifyAdminsForProfileUpdate(user, "教师");
+
+            return ApiResponse.success("资料更新申请已提交，等待管理员审核", true);
+        } catch (Exception e) {
+            return ApiResponse.failure(500, "保存资料更新申请失败：" + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -133,5 +182,24 @@ public class TeacherController {
             @RequestBody Map<String, String> payload) {
         String reviewComment = payload.get("reviewComment");
         return ApiResponse.success(teacherService.rejectProfileUpdate(teacherId, requestId, reviewComment));
+    }
+
+    /**
+     * 给所有管理员发送一条“有教师资料待审核”的系统通知
+     */
+    private void notifyAdminsForProfileUpdate(SysUser user, String roleLabel) {
+        List<SysUser> admins = sysUserService.list(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getRole, SysUser.Role.ADMIN));
+        for (SysUser admin : admins) {
+            SystemNotification notification = new SystemNotification();
+            notification.setUserId(admin.getId());
+            notification.setCategory(SystemNotification.Category.SYSTEM);
+            notification.setTitle(roleLabel + "资料待审核");
+            String name = user.getFullName() != null ? user.getFullName() : user.getUsername();
+            notification.setContent("用户【" + name + "】提交了" + roleLabel + "个人资料更新申请，请及时审核。");
+            notification.setReadFlag(false);
+            notification.setCreatedAt(java.time.LocalDateTime.now());
+            notificationService.save(notification);
+        }
     }
 }

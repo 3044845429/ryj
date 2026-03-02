@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS student_experience;
 DROP TABLE IF EXISTS student_education;
 DROP TABLE IF EXISTS student_profile;
 DROP TABLE IF EXISTS student_profile_update_request;
+DROP TABLE IF EXISTS profile_update_request;
 DROP TABLE IF EXISTS sys_user;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -64,10 +65,25 @@ CREATE TABLE IF NOT EXISTS student_profile_update_request (
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
     reviewed_at     DATETIME DEFAULT NULL COMMENT '审核时间',
     reviewer_id     BIGINT DEFAULT NULL COMMENT '审核人ID',
+    homeroom_teacher_id BIGINT DEFAULT NULL COMMENT '班主任教师ID',
     review_comment  TEXT COMMENT '审核备注',
     FOREIGN KEY (student_id) REFERENCES sys_user(id),
     FOREIGN KEY (reviewer_id) REFERENCES sys_user(id)
 ) COMMENT='学生个人档案更新申请记录表';
+
+CREATE TABLE IF NOT EXISTS profile_update_request (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID，自增',
+    user_id         BIGINT      NOT NULL COMMENT '关联 sys_user 的ID',
+    role            ENUM('TEACHER','EMPLOYER') NOT NULL COMMENT '用户角色：教师/企业',
+    payload         TEXT        NOT NULL COMMENT '待更新的资料内容（JSON 字符串）',
+    status          ENUM('PENDING','APPROVED','REJECTED') DEFAULT 'PENDING' COMMENT '审核状态',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
+    reviewed_at     DATETIME DEFAULT NULL COMMENT '审核时间',
+    reviewer_id     BIGINT DEFAULT NULL COMMENT '审核管理员ID',
+    review_comment  TEXT COMMENT '管理员审核意见',
+    FOREIGN KEY (user_id) REFERENCES sys_user(id),
+    FOREIGN KEY (reviewer_id) REFERENCES sys_user(id)
+) COMMENT='教师/企业个人资料更新审批记录表';
 
 CREATE TABLE IF NOT EXISTS student_education (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID，自增',
@@ -278,6 +294,7 @@ CREATE TABLE IF NOT EXISTS student_profile_update_request (
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '请求创建时间',
     reviewed_at   DATETIME COMMENT '审核时间',
     reviewer_id   BIGINT COMMENT '审核人ID（教师或管理员）',
+    homeroom_teacher_id BIGINT DEFAULT NULL COMMENT '班主任教师ID',
     review_comment TEXT COMMENT '审核意见',
     FOREIGN KEY (student_id) REFERENCES student_profile(id),
     FOREIGN KEY (reviewer_id) REFERENCES sys_user(id)

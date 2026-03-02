@@ -23,8 +23,10 @@ import com.ryj.demo.entity.Interview;
 import com.ryj.demo.entity.JobApplication;
 import com.ryj.demo.entity.JobPosting;
 import com.ryj.demo.entity.JobRequirement;
+import com.ryj.demo.entity.ProfileUpdateRequest;
 import com.ryj.demo.entity.Resume;
 import com.ryj.demo.entity.SysUser;
+import com.ryj.demo.entity.SystemNotification;
 import com.ryj.demo.entity.StudentProfile;
 import com.ryj.demo.service.EmployerService;
 import com.ryj.demo.service.EmploymentIntentionCityService;
@@ -33,9 +35,11 @@ import com.ryj.demo.service.InterviewService;
 import com.ryj.demo.service.JobApplicationService;
 import com.ryj.demo.service.JobPostingService;
 import com.ryj.demo.service.JobRequirementService;
+import com.ryj.demo.service.ProfileUpdateRequestService;
 import com.ryj.demo.service.ResumeService;
 import com.ryj.demo.service.StudentProfileService;
 import com.ryj.demo.service.SysUserService;
+import com.ryj.demo.service.SystemNotificationService;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -76,6 +80,8 @@ public class EmployerModuleController {
     private final StudentProfileService studentProfileService;
     private final EmploymentIntentionService employmentIntentionService;
     private final EmploymentIntentionCityService employmentIntentionCityService;
+    private final SystemNotificationService notificationService;
+    private final ProfileUpdateRequestService profileUpdateRequestService;
 
     @GetMapping("/overview")
     public ApiResponse<EmployerDashboardResponse> overview(@RequestParam Long userId) {
@@ -223,27 +229,38 @@ public class EmployerModuleController {
     public ApiResponse<Employer> saveProfile(@RequestParam Long userId,
                                              @Valid @RequestBody EmployerProfileRequest request) {
         SysUser user = requireEmployerUser(userId);
-        Employer employer = employerService.findByUserId(userId)
-                .orElseGet(() -> {
-                    Employer created = new Employer();
-                    created.setUserId(userId);
-                    return created;
-                });
-        employer.setCompanyName(request.getCompanyName().trim());
-        employer.setContactPerson(trimToNull(request.getContactPerson()));
-        employer.setContactEmail(trimToNull(request.getContactEmail()));
-        employer.setContactPhone(trimToNull(request.getContactPhone()));
-        employer.setDescription(trimToNull(request.getDescription()));
-        employer.setWebsite(trimToNull(request.getWebsite()));
-        if (employer.getId() == null) {
-            employerService.save(employer);
-        } else {
-            employerService.updateById(employer);
+
+        // 检查是否已有待审核记录
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProfileUpdateRequest> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProfileUpdateRequest>()
+                        .eq(ProfileUpdateRequest::getUserId, user.getId())
+                        .eq(ProfileUpdateRequest::getRole, "EMPLOYER")
+                        .eq(ProfileUpdateRequest::getStatus, "PENDING");
+        ProfileUpdateRequest existing = profileUpdateRequestService.getOne(wrapper);
+        if (existing != null) {
+            return ApiResponse.failure(400, "已有待审核的企业资料更新申请，请等待管理员审核后再提交新的修改");
         }
-        if (employer.getContactPerson() == null) {
-            employer.setContactPerson(Optional.ofNullable(user.getFullName()).orElse(user.getUsername()));
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String payload = mapper.writeValueAsString(request);
+
+            ProfileUpdateRequest record = new ProfileUpdateRequest();
+            record.setUserId(user.getId());
+            record.setRole("EMPLOYER");
+            record.setPayload(payload);
+            record.setStatus("PENDING");
+            profileUpdateRequestService.save(record);
+
+            // 给所有管理员发送系统通知
+            notifyAdminsForProfileUpdate(user, "企业");
+
+            // 返回当前已生效的企业资料（未修改）
+            Employer employer = employerService.findByUserId(userId).orElse(null);
+            return ApiResponse.success("资料更新申请已提交，等待管理员审核", employer);
+        } catch (Exception e) {
+            return ApiResponse.failure(500, "保存资料更新申请失败：" + e.getMessage(), null);
         }
-        return ApiResponse.success(employer);
     }
 
     @GetMapping("/jobs")
@@ -532,6 +549,9 @@ public class EmployerModuleController {
         }
         application.setStatus(request.getStatus());
         boolean updated = jobApplicationService.updateById(application);
+        if (updated && application.getStudentId() != null) {
+            notifyStudentApplicationStatus(application.getStudentId(), request.getStatus());
+        }
         return ApiResponse.success(updated);
     }
 
@@ -591,6 +611,7 @@ public class EmployerModuleController {
         Interview interview = new Interview();
         applyInterview(interview, request);
         interviewService.save(interview);
+        notifyStudentInterview(application.getStudentId(), true, null);
         return ApiResponse.success(buildInterviewResponse(interview, posting, application));
     }
 
@@ -613,6 +634,9 @@ public class EmployerModuleController {
         }
         applyInterview(interview, request);
         interviewService.updateById(interview);
+        if (application.getStudentId() != null) {
+            notifyStudentInterview(application.getStudentId(), false, interview);
+        }
         return ApiResponse.success(buildInterviewResponse(interview, posting, application));
     }
 
@@ -801,6 +825,39 @@ public class EmployerModuleController {
         posting.setClosingDate(request.getClosingDate());
     }
 
+    private void notifyStudentApplicationStatus(Long studentUserId, JobApplication.Status status) {
+        if (studentUserId == null) return;
+        String title;
+        String content;
+        switch (status) {
+            case REVIEWING -> { title = "投递已进入审核"; content = "您投递的职位申请已进入企业审核，请留意后续通知。"; }
+            case INTERVIEW -> { title = "面试邀请"; content = "企业已对您的投递发起面试安排，请及时查看并确认。"; }
+            case OFFERED -> { title = "收到录用通知"; content = "恭喜！您已收到企业的录用通知，请及时查看并处理。"; }
+            case REJECTED -> { title = "申请未通过"; content = "您投递的职位申请未通过，可继续投递其他岗位。"; }
+            default -> { return; }
+        }
+        SystemNotification n = new SystemNotification();
+        n.setUserId(studentUserId);
+        n.setCategory(SystemNotification.Category.APPLICATION);
+        n.setTitle(title);
+        n.setContent(content);
+        n.setReadFlag(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationService.save(n);
+    }
+
+    private void notifyStudentInterview(Long studentUserId, boolean isCreate, Interview interview) {
+        if (studentUserId == null) return;
+        SystemNotification n = new SystemNotification();
+        n.setUserId(studentUserId);
+        n.setCategory(SystemNotification.Category.INTERVIEW);
+        n.setTitle(isCreate ? "面试安排通知" : "面试安排已更新");
+        n.setContent(isCreate ? "企业已为您安排面试，请及时查看时间与地点。" : "您的面试安排已更新，请查看最新时间与地点。");
+        n.setReadFlag(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationService.save(n);
+    }
+
     private void applyInterview(Interview interview, EmployerInterviewRequest request) {
         interview.setJobId(request.getJobId());
         interview.setApplicationId(request.getApplicationId());
@@ -832,6 +889,25 @@ public class EmployerModuleController {
                 .filter(item -> item != null && !item.isEmpty())
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 给所有管理员发送一条“有企业资料待审核”的系统通知
+     */
+    private void notifyAdminsForProfileUpdate(SysUser user, String roleLabel) {
+        List<SysUser> admins = sysUserService.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getRole, SysUser.Role.ADMIN));
+        for (SysUser admin : admins) {
+            SystemNotification notification = new SystemNotification();
+            notification.setUserId(admin.getId());
+            notification.setCategory(SystemNotification.Category.SYSTEM);
+            notification.setTitle(roleLabel + "资料待审核");
+            String name = user.getFullName() != null ? user.getFullName() : user.getUsername();
+            notification.setContent("用户【" + name + "】提交了" + roleLabel + "个人资料更新申请，请及时审核。");
+            notification.setReadFlag(false);
+            notification.setCreatedAt(LocalDateTime.now());
+            notificationService.save(notification);
+        }
     }
 
     private String trimToNull(String value) {

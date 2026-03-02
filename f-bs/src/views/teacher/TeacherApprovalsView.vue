@@ -127,7 +127,7 @@ const formatDateTime = (value: string | null) => {
 </script>
 
 <template>
-  <div class="approvals-page">
+  <div class="teacher-page">
     <nav class="teacher-nav">
       <div class="nav-container">
         <div class="nav-logo">
@@ -136,77 +136,82 @@ const formatDateTime = (value: string | null) => {
         </div>
         <div class="nav-links">
           <router-link to="/teacher/overview" class="nav-link" active-class="active">
-            <span class="link-icon">📊</span>
-            <span>仪表板</span>
+            <span class="link-icon">📊</span><span>仪表板</span>
           </router-link>
           <router-link to="/teacher/guidance" class="nav-link" active-class="active">
-            <span class="link-icon">📝</span>
-            <span>指导记录</span>
+            <span class="link-icon">📝</span><span>指导记录</span>
           </router-link>
           <router-link to="/teacher/statistics" class="nav-link" active-class="active">
-            <span class="link-icon">📈</span>
-            <span>统计分析</span>
+            <span class="link-icon">📈</span><span>统计分析</span>
           </router-link>
           <router-link to="/teacher/approvals" class="nav-link" active-class="active">
-            <span class="link-icon">✅</span>
-            <span>档案审核</span>
+            <span class="link-icon">✅</span><span>档案审核</span>
+          </router-link>
+          <router-link to="/teacher/profile" class="nav-link" active-class="active">
+            <span class="link-icon">👤</span><span>教师信息</span>
           </router-link>
         </div>
       </div>
     </nav>
 
-    <div class="container">
-      <header class="page-header">
-        <h1>档案审核</h1>
-        <div class="filters">
-          <input v-model="keyword" class="input" placeholder="按学生姓名过滤" />
-          <input v-model="majorFilter" class="input" placeholder="按专业过滤" />
-        </div>
-      </header>
+    <main class="teacher-body">
+      <div class="body-inner">
+        <header class="teacher-top-bar">
+          <div>
+            <h1>档案审核</h1>
+            <p class="subtitle">处理学生提交的档案变更申请</p>
+          </div>
+          <div class="filters">
+            <input v-model="keyword" class="teacher-input filter-input" placeholder="学生姓名" />
+            <input v-model="majorFilter" class="teacher-input filter-input" placeholder="专业" />
+          </div>
+        </header>
 
-      <div v-if="loading" class="loading-state">
-        <div class="spinner" />
-        加载中...
-      </div>
-      <div v-else-if="error" class="error">{{ error }}</div>
-      <div v-else>
-        <div v-if="filtered.length === 0" class="empty-state">暂无待审核申请</div>
-        <div v-else class="list">
-          <article v-for="req in filtered" :key="req.requestId" class="item">
-            <div class="head">
-              <div class="title">
-                <strong>{{ req.studentName }}</strong>
-                <span class="meta">
-                  <span>{{ req.major || '专业未填写' }}</span>
-                  <span v-if="req.graduationYear">预计 {{ req.graduationYear }} 毕业</span>
-                  <span>提交于 {{ formatDateTime(req.submittedAt) }}</span>
-                </span>
+        <div v-if="loading" class="teacher-loading">
+          <div class="spinner" />
+          加载中…
+        </div>
+        <div v-else-if="error" class="teacher-error">{{ error }}</div>
+        <div v-else class="teacher-card">
+          <div v-if="filtered.length === 0" class="teacher-empty">暂无待审核申请</div>
+          <div v-else class="approval-list">
+            <article v-for="req in filtered" :key="req.requestId" class="approval-item">
+              <div class="approval-head">
+                <div class="approval-title">
+                  <strong>{{ req.studentName }}</strong>
+                  <span class="approval-meta">
+                    {{ req.major || '专业未填写' }}
+                    <template v-if="req.graduationYear"> · 预计 {{ req.graduationYear }} 毕业</template>
+                    · 提交于 {{ formatDateTime(req.submittedAt) }}
+                  </span>
+                </div>
+                <div class="approval-actions">
+                  <button type="button" class="teacher-btn teacher-btn-secondary" @click="openDetail(req.requestId)">查看详情</button>
+                  <button type="button" class="teacher-btn btn-approve" @click="openDialog('APPROVE', req.requestId)">通过</button>
+                  <button type="button" class="teacher-btn btn-reject" @click="openDialog('REJECT', req.requestId)">退回</button>
+                </div>
               </div>
-              <div class="actions">
-                <button class="btn neutral" @click="openDetail(req.requestId)" title="查看档案改动详情">查看详情</button>
-                <button class="btn approve" @click="openDialog('APPROVE', req.requestId)" title="审核通过后学生档案立即更新">✅ 通过</button>
-                <button class="btn reject" @click="openDialog('REJECT', req.requestId)" title="退回让学生修改，档案不更新">📝 退回修改</button>
-              </div>
-            </div>
-            <p class="brief">{{ (req.biography && req.biography.length > 180) ? (req.biography.slice(0,180) + '…') : (req.biography || '—') }}</p>
-          </article>
+              <p class="approval-brief">{{ (req.biography && req.biography.length > 180) ? (req.biography.slice(0,180) + '…') : (req.biography || '—') }}</p>
+            </article>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
 
-    <div v-if="dialog.visible" class="modal" @click.self="closeDialog">
-      <div class="panel">
-        <h3>📝 退回档案申请</h3>
-        <p class="hint">⚠️ 退回后学生档案不会更新，学生可根据您的意见修改后重新提交。请填写退回原因（必填）。</p>
-        <textarea 
-          v-model="dialog.comment" 
-          placeholder="例如：个人简介不够详细，请补充实习经历..." 
-          class="required"
+    <div v-if="dialog.visible" class="approval-modal" @click.self="closeDialog">
+      <div class="approval-modal-panel">
+        <h3>退回档案申请</h3>
+        <p class="approval-modal-hint">请填写退回原因，学生将根据您的意见修改后重新提交。</p>
+        <textarea
+          v-model="dialog.comment"
+          class="teacher-textarea"
+          placeholder="例如：个人简介不够详细，请补充实习经历…"
+          rows="4"
         />
-        <div class="modal-actions">
-          <button class="btn" @click="closeDialog">取消</button>
-          <button class="btn primary" :disabled="submitting || !dialog.comment.trim()" @click="submit">
-            {{ submitting ? '提交中...' : '确认退回' }}
+        <div class="approval-modal-actions">
+          <button type="button" class="teacher-btn teacher-btn-secondary" @click="closeDialog">取消</button>
+          <button type="button" class="teacher-btn teacher-btn-primary" :disabled="submitting || !dialog.comment.trim()" @click="submit">
+            {{ submitting ? '提交中…' : '确认退回' }}
           </button>
         </div>
       </div>
@@ -214,49 +219,41 @@ const formatDateTime = (value: string | null) => {
   </div>
 </template>
 
+<style src="@/assets/teacher-layout.css"></style>
 <style scoped>
-.teacher-nav { position: fixed; top:0; left:0; right:0; z-index:100; background: rgba(255,255,255,.85); backdrop-filter: blur(20px) saturate(180%); border-bottom:1px solid rgba(0,0,0,.08); }
-.nav-container { max-width: 1400px; margin:0 auto; padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:56px; }
-.nav-logo { display:flex; align-items:center; gap:.75rem; font-weight:600; font-size:1.1rem; color:#1e293b; }
-.logo-icon { font-size:1.5rem; }
-.nav-links { display:flex; gap:.5rem; }
-.nav-link { display:flex; align-items:center; gap:.5rem; padding:.6rem 1.25rem; border-radius:10px; color:#64748b; text-decoration:none; font-weight:500; transition:all .2s cubic-bezier(.4,0,.2,1); position:relative; }
-.nav-link:hover { color:#3b82f6; background:rgba(59,130,246,.08); }
-.nav-link.active { color:#3b82f6; background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(99,102,241,.12)); }
+.filters { display: flex; gap: 12px; align-items: center; }
+.filter-input { width: 180px; }
+.approval-list { display: flex; flex-direction: column; gap: 16px; }
+.approval-item {
+  padding: 20px;
+  background: #f5f5f7;
+  border-radius: 10px;
+  border: 1px solid #e8e8ed;
+}
+.approval-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+.approval-title { display: flex; flex-direction: column; gap: 4px; }
+.approval-title strong { font-size: 1.0625rem; color: #1d1d1f; }
+.approval-meta { font-size: 0.875rem; color: #86868b; }
+.approval-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.btn-approve { background: #34c759; color: #fff; }
+.btn-approve:hover { opacity: 0.9; }
+.btn-reject { background: #ff3b30; color: #fff; }
+.btn-reject:hover { opacity: 0.9; }
+.approval-brief { margin: 0; font-size: 0.9375rem; color: #515154; line-height: 1.5; }
 
-.approvals-page { min-height:100vh; background: linear-gradient(180deg,#f8fafc 0%, #f1f5f9 100%); padding-top:56px; }
-.container { max-width: 1200px; margin:0 auto; padding: 2rem; }
-.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
-.page-header h1 { margin:0; font-size:1.6rem; }
-.filters { display:flex; gap:.75rem; }
-.input { padding:.6rem .9rem; border:1px solid #cbd5e1; border-radius:10px; }
-
-.loading-state { text-align:center; padding:3rem; }
-.error { color:#b91c1c; }
-.empty-state { text-align:center; padding:2.5rem 1.5rem; background: rgba(255,255,255,.9); border-radius:16px; }
-.list { display:flex; flex-direction:column; gap:1rem; }
-.item { background:#fff; border-radius:16px; padding:1.25rem; box-shadow:0 12px 24px rgba(15,23,42,.08); }
-.head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
-.title { display:flex; flex-direction:column; gap:.35rem; }
-.meta { display:flex; flex-wrap:wrap; gap:.75rem; color:#64748b; font-size:.9rem; }
-.actions { display:flex; gap:.5rem; }
-.btn { border:none; border-radius:12px; padding:.5rem .9rem; font-weight:600; cursor:pointer; }
-.btn.neutral { background:rgba(59,130,246,.08); color:#1d4ed8; border:1px solid rgba(59,130,246,.2); }
-.btn.neutral:hover { background:rgba(59,130,246,.14); }
-.btn.approve { background: linear-gradient(135deg,#34d399,#059669); color:#fff; }
-.btn.reject { background: linear-gradient(135deg,#f97316,#ef4444); color:#fff; }
-.brief { margin:.75rem 0 0; color:#1f2937; }
-
-.modal { position:fixed; inset:0; display:grid; place-items:center; background:rgba(15,23,42,.35); backdrop-filter: blur(6px); z-index:50; }
-.panel { width:min(520px,92vw); background:#fff; border-radius:20px; padding:1.5rem; box-shadow:0 30px 80px rgba(15,23,42,.2); display:flex; flex-direction:column; gap:1rem; }
-.panel h3 { margin:0; font-size:1.25rem; }
-.hint { color:#64748b; margin:0; font-size:.95rem; line-height:1.6; }
-textarea { min-height:120px; border:1px solid #cbd5e1; border-radius:12px; padding:.75rem 1rem; resize:vertical; font-size:.95rem; }
-textarea.required { border-color:#f97316; }
-textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.1); }
-.modal-actions { display:flex; justify-content:flex-end; gap:.75rem; }
-.btn.primary { background: linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; }
-.btn:disabled { opacity:.5; cursor:not-allowed; }
+.approval-modal {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+}
+.approval-modal-panel {
+  width: min(480px, 92vw); background: #fff; border-radius: 12px;
+  padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.approval-modal-panel h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #1d1d1f; }
+.approval-modal-hint { margin: 0; font-size: 0.9375rem; color: #86868b; line-height: 1.5; }
+.approval-modal-actions { display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px; }
 </style>
 
 

@@ -91,7 +91,7 @@ const submit = async () => {
   try {
     const profile = await saveEmployerProfile(userId.value, payload)
     assignProfile(profile)
-    message.value = '企业资料保存成功'
+    message.value = '已提交管理员审核，审核通过后企业资料会更新'
     messageType.value = 'success'
   } catch (err) {
     console.error(err)

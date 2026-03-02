@@ -140,8 +140,7 @@ const maxSalaryCount = computed(() => {
 </script>
 
 <template>
-  <div class="statistics-view">
-    <!-- 顶部导航 -->
+  <div class="teacher-page">
     <nav class="teacher-nav">
       <div class="nav-container">
         <div class="nav-logo">
@@ -150,61 +149,64 @@ const maxSalaryCount = computed(() => {
         </div>
         <div class="nav-links">
           <router-link to="/teacher/overview" class="nav-link" active-class="active">
-            <span class="link-icon">📊</span>
-            <span>仪表板</span>
+            <span class="link-icon">📊</span><span>仪表板</span>
           </router-link>
           <router-link to="/teacher/guidance" class="nav-link" active-class="active">
-            <span class="link-icon">📝</span>
-            <span>指导记录</span>
+            <span class="link-icon">📝</span><span>指导记录</span>
           </router-link>
           <router-link to="/teacher/statistics" class="nav-link" active-class="active">
-            <span class="link-icon">📈</span>
-            <span>统计分析</span>
+            <span class="link-icon">📈</span><span>统计分析</span>
+          </router-link>
+          <router-link to="/teacher/approvals" class="nav-link" active-class="active">
+            <span class="link-icon">✅</span><span>档案审核</span>
           </router-link>
           <router-link to="/teacher/profile" class="nav-link" active-class="active">
-            <span class="link-icon">🧑‍🏫</span>
-            <span>教师信息</span>
+            <span class="link-icon">👤</span><span>教师信息</span>
           </router-link>
         </div>
       </div>
     </nav>
 
-    <div class="stats-content">
-      <div class="stats-header">
-        <h1>📈 就业统计分析</h1>
-        <div class="scope-toggle">
-        <button
-          :class="{ active: scope === 'guided' }"
-          @click="changeScopeAndLoad('guided')"
-          :disabled="loading"
-        >
-          结对学生
-        </button>
-        <button
-          :class="{ active: scope === 'all' }"
-          @click="changeScopeAndLoad('all')"
-          :disabled="loading"
-        >
-          全部学生
-        </button>
-      </div>
-    </div>
+    <main class="teacher-body">
+      <div class="body-inner">
+        <header class="teacher-top-bar">
+          <div>
+            <h1>就业统计分析</h1>
+            <p class="subtitle">结对学生或全部学生的就业数据概览</p>
+          </div>
+          <div class="scope-toggle">
+            <button
+              type="button"
+              :class="{ active: scope === 'guided' }"
+              :disabled="loading"
+              @click="changeScopeAndLoad('guided')"
+            >
+              结对学生
+            </button>
+            <button
+              type="button"
+              :class="{ active: scope === 'all' }"
+              :disabled="loading"
+              @click="changeScopeAndLoad('all')"
+            >
+              全部学生
+            </button>
+          </div>
+        </header>
 
-    <transition name="fade">
-      <div v-if="message" class="message-banner" :class="message.type">
-        {{ message.text }}
-      </div>
-    </transition>
+        <transition name="fade">
+          <div v-if="message" class="stats-message" :class="message.type">{{ message.text }}</div>
+        </transition>
 
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>加载统计数据中...</p>
-    </div>
+        <div v-if="loading" class="teacher-loading">
+          <div class="spinner" />
+          加载统计数据中…
+        </div>
 
-    <div v-else-if="statistics" class="stats-content">
+        <template v-else-if="statistics">
       <!-- 总览统计 -->
-      <section class="overview-section">
-        <h2>总览数据</h2>
+      <section class="teacher-card overview-section">
+        <h2 class="card-title">总览数据</h2>
         <div class="stats-grid">
           <div class="stat-card primary">
             <span class="stat-label">总学生数</span>
@@ -242,8 +244,8 @@ const maxSalaryCount = computed(() => {
       </section>
 
       <!-- 公司分布 -->
-      <section class="chart-section">
-        <h2>就业公司分布（Top 10）</h2>
+      <section class="teacher-card chart-section">
+        <h2 class="card-title">就业公司分布（Top 10）</h2>
         <div v-if="statistics.industryDistribution.length === 0" class="empty-chart">
           暂无公司分布数据
         </div>
@@ -263,8 +265,8 @@ const maxSalaryCount = computed(() => {
       </section>
 
       <!-- 地区分布 -->
-      <section class="chart-section">
-        <h2>地区分布</h2>
+      <section class="teacher-card chart-section">
+        <h2 class="card-title">地区分布</h2>
         <div v-if="statistics.locationDistribution.length === 0" class="empty-chart">
           暂无地区分布数据
         </div>
@@ -282,8 +284,8 @@ const maxSalaryCount = computed(() => {
       </section>
 
       <!-- 薪资分布 -->
-      <section class="chart-section">
-        <h2>薪资分布</h2>
+      <section class="teacher-card chart-section">
+        <h2 class="card-title">薪资分布</h2>
         <div class="salary-stats">
           <div class="salary-summary">
             <div class="summary-item">
@@ -309,8 +311,8 @@ const maxSalaryCount = computed(() => {
       </section>
 
       <!-- 专业就业率 -->
-      <section class="chart-section">
-        <h2>专业就业率</h2>
+      <section class="teacher-card chart-section">
+        <h2 class="card-title">专业就业率</h2>
         <div v-if="statistics.majorEmploymentRates.length === 0" class="empty-chart">
           暂无专业就业率数据
         </div>
@@ -327,8 +329,8 @@ const maxSalaryCount = computed(() => {
       </section>
 
       <!-- 月度趋势 -->
-      <section class="chart-section">
-        <h2>月度趋势</h2>
+      <section class="teacher-card chart-section">
+        <h2 class="card-title">月度趋势</h2>
         <div v-if="statistics.monthlyTrends.length === 0" class="empty-chart">
           暂无月度趋势数据
         </div>
@@ -353,203 +355,55 @@ const maxSalaryCount = computed(() => {
           </table>
         </div>
       </section>
+        </template>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
+<style src="@/assets/teacher-layout.css"></style>
 <style scoped>
-/* 顶部导航栏 */
-.teacher-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.nav-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-}
-
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: #1e293b;
-}
-
-.logo-icon {
-  font-size: 1.5rem;
-}
-
-.nav-links {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
-  border-radius: 10px;
-  color: #64748b;
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.nav-link:hover {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.nav-link.active {
-  color: #3b82f6;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(99, 102, 241, 0.12));
-}
-
-.nav-link.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 2px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 2px;
-}
-
-.link-icon {
-  font-size: 1.1rem;
-}
-
-.statistics-view {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  padding-top: 56px;
-}
-
-.stats-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.stats-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.stats-header h1 {
-  font-size: 2rem;
-  color: #1e293b;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .scope-toggle {
   display: flex;
-  gap: 0.5rem;
-  background: rgba(226, 232, 240, 0.4);
-  padding: 0.25rem;
-  border-radius: 12px;
+  gap: 4px;
+  background: #e8e8ed;
+  padding: 4px;
+  border-radius: 8px;
 }
-
 .scope-toggle button {
-  padding: 0.6rem 1.25rem;
+  padding: 8px 16px;
   border: none;
-  border-radius: 10px;
-  font-weight: 600;
-  color: #64748b;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #86868b;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
-
 .scope-toggle button.active {
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
-  color: white;
-  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.25);
+  background: #fff;
+  color: #0071e3;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
-
 .scope-toggle button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-.message-banner {
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  font-weight: 600;
+.stats-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 0.9375rem;
+  font-weight: 500;
 }
+.stats-message.success { background: rgba(52, 199, 89, 0.12); color: #248a3d; }
+.stats-message.error { background: rgba(255, 59, 48, 0.12); color: #d70015; }
 
-.message-banner.success {
-  background: rgba(34, 197, 94, 0.15);
-  color: #047857;
-}
-
-.message-banner.error {
-  background: rgba(248, 113, 113, 0.18);
-  color: #b91c1c;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 4rem 2rem;
-}
-
-.spinner {
-  width: 3rem;
-  height: 3rem;
-  border: 4px solid rgba(99, 102, 241, 0.25);
-  border-top-color: #4f46e5;
-  border-radius: 999px;
-  margin: 0 auto 1rem;
-  animation: spin 0.8s linear infinite;
-}
-
-.stats-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.overview-section,
-.chart-section {
-  background: white;
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.overview-section h2,
-.chart-section h2 {
-  margin: 0 0 1.5rem;
-  font-size: 1.4rem;
-  color: #1e293b;
-}
+.overview-section { margin-bottom: 24px; }
+.overview-section .card-title { margin-bottom: 20px; }
+.chart-section { margin-bottom: 24px; }
+.chart-section .card-title { margin-bottom: 16px; font-size: 1.125rem; }
 
 .stats-grid {
   display: grid;
@@ -565,45 +419,24 @@ const maxSalaryCount = computed(() => {
   gap: 0.5rem;
 }
 
-.stat-card.primary {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.25));
+.stat-card {
+  padding: 20px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f5f5f7;
+  border: 1px solid #e8e8ed;
 }
-
-.stat-card.success {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(5, 150, 105, 0.25));
-}
-
-.stat-card.warning {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.25));
-}
-
-.stat-card.muted {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.15), rgba(100, 116, 139, 0.25));
-}
-
-.stat-card.accent {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(124, 58, 237, 0.25));
-}
-
-.stat-card.info {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.25));
-}
-
-.stat-card.secondary {
-  background: linear-gradient(135deg, rgba(244, 114, 182, 0.15), rgba(236, 72, 153, 0.25));
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.stat-value {
-  font-size: 2rem;
-  color: #1e293b;
-  font-weight: 700;
-}
+.stat-card.primary { background: rgba(0, 113, 227, 0.08); border-color: rgba(0, 113, 227, 0.2); }
+.stat-card.success { background: rgba(52, 199, 89, 0.08); border-color: rgba(52, 199, 89, 0.2); }
+.stat-card.warning { background: rgba(255, 149, 0, 0.08); border-color: rgba(255, 149, 0, 0.2); }
+.stat-card.muted { background: #f5f5f7; }
+.stat-card.accent { background: rgba(88, 86, 214, 0.08); border-color: rgba(88, 86, 214, 0.2); }
+.stat-card.info { background: rgba(0, 122, 255, 0.08); border-color: rgba(0, 122, 255, 0.2); }
+.stat-card.secondary { background: rgba(255, 45, 85, 0.08); border-color: rgba(255, 45, 85, 0.2); }
+.stat-label { font-size: 0.875rem; color: #86868b; font-weight: 500; }
+.stat-value { font-size: 1.75rem; color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; }
 
 .empty-chart {
   text-align: center;
@@ -647,7 +480,7 @@ const maxSalaryCount = computed(() => {
 .industry-bar,
 .major-bar {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  background: #0071e3;
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -673,25 +506,17 @@ const maxSalaryCount = computed(() => {
 }
 
 .location-card {
-  padding: 1.25rem;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.12));
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(0, 113, 227, 0.06);
+  border: 1px solid rgba(0, 113, 227, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 4px;
   text-align: center;
 }
-
-.location-card strong {
-  font-size: 1.1rem;
-  color: #1e293b;
-}
-
-.location-count {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #3b82f6;
-}
+.location-card strong { font-size: 1rem; color: #1d1d1f; }
+.location-count { font-size: 1.25rem; font-weight: 600; color: #0071e3; }
 
 .location-percent {
   font-size: 0.85rem;
@@ -755,11 +580,10 @@ const maxSalaryCount = computed(() => {
 
 .bar-fill {
   width: 100%;
-  max-width: 60px;
-  background: linear-gradient(180deg, #3b82f6, #8b5cf6);
-  border-radius: 8px 8px 0 0;
+  max-width: 56px;
+  background: #0071e3;
+  border-radius: 6px 6px 0 0;
   transition: height 0.5s ease;
-  position: relative;
 }
 
 .bar-value {

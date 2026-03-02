@@ -61,7 +61,7 @@ const save = async () => {
       focus: form.focus.trim() || null,
       biography: form.biography.trim() || null,
     })
-    message.value = '保存成功'
+    message.value = '已提交管理员审核，请等待审核结果后生效'
   } catch (e: any) {
     error.value = e?.message || '保存失败'
   } finally {
@@ -73,7 +73,7 @@ onMounted(loadProfile)
 </script>
 
 <template>
-  <div class="teacher-profile">
+  <div class="teacher-page">
     <nav class="teacher-nav">
       <div class="nav-container">
         <div class="nav-logo">
@@ -81,75 +81,106 @@ onMounted(loadProfile)
           <span class="logo-text">教师工作台</span>
         </div>
         <div class="nav-links">
-          <router-link to="/teacher/overview" class="nav-link" active-class="active"><span class="link-icon">📊</span><span>仪表板</span></router-link>
-          <router-link to="/teacher/guidance" class="nav-link" active-class="active"><span class="link-icon">📝</span><span>指导记录</span></router-link>
-          <router-link to="/teacher/statistics" class="nav-link" active-class="active"><span class="link-icon">📈</span><span>统计分析</span></router-link>
-          <router-link to="/teacher/profile" class="nav-link" active-class="active"><span class="link-icon">🧑‍🏫</span><span>教师信息</span></router-link>
+          <router-link to="/teacher/overview" class="nav-link" active-class="active">
+            <span class="link-icon">📊</span><span>仪表板</span>
+          </router-link>
+          <router-link to="/teacher/guidance" class="nav-link" active-class="active">
+            <span class="link-icon">📝</span><span>指导记录</span>
+          </router-link>
+          <router-link to="/teacher/statistics" class="nav-link" active-class="active">
+            <span class="link-icon">📈</span><span>统计分析</span>
+          </router-link>
+          <router-link to="/teacher/approvals" class="nav-link" active-class="active">
+            <span class="link-icon">✅</span><span>档案审核</span>
+          </router-link>
+          <router-link to="/teacher/profile" class="nav-link" active-class="active">
+            <span class="link-icon">👤</span><span>教师信息</span>
+          </router-link>
         </div>
       </div>
     </nav>
 
-    <div class="container">
-      <header class="page-header">
-        <h1>教师信息</h1>
-        <p>完善您的基本资料、学院与专业信息，便于学生按专业匹配班主任。</p>
-      </header>
-
-      <div v-if="loading" class="loading-state"><div class="spinner" />加载中...</div>
-      <div v-else class="card">
-        <form class="form" @submit.prevent="save">
-          <div class="grid">
-            <label class="field"><span>姓名</span><input v-model="form.name" class="input" placeholder="如：张晓琳" /></label>
-            <label class="field"><span>学院/部门</span><input v-model="form.department" class="input" placeholder="如：计算机学院" /></label>
-            <label class="field"><span>专业</span><input v-model="form.major" class="input" placeholder="如：软件工程" /></label>
-            <label class="field"><span>邮箱</span><input v-model="form.email" class="input" type="email" placeholder="name@school.edu.cn" /></label>
-            <label class="field"><span>电话</span><input v-model="form.phone" class="input" placeholder="如：138****8888" /></label>
-            <label class="field"><span>研究方向</span><input v-model="form.focus" class="input" placeholder="如：分布式系统、AI教育" /></label>
+    <main class="teacher-body">
+      <div class="body-inner">
+        <header class="teacher-top-bar">
+          <div>
+            <h1>教师信息</h1>
+            <p class="subtitle">完善基本资料与学院信息，便于学生按专业匹配班主任。</p>
           </div>
-          <label class="field">
-            <span>个人简介</span>
-            <textarea v-model="form.biography" class="textarea" rows="5" placeholder="教学理念、科研方向、对学生的建议..." />
-          </label>
+        </header>
 
-          <div class="actions">
-            <button type="submit" class="btn primary" :disabled="saving">{{ saving ? '保存中...' : '保存信息' }}</button>
-          </div>
-
-          <p v-if="message" class="ok">{{ message }}</p>
-          <p v-if="error" class="err">{{ error }}</p>
-        </form>
+        <div v-if="loading" class="teacher-loading">
+          <div class="spinner" />
+          加载中…
+        </div>
+        <div v-else class="teacher-card">
+          <form class="profile-form" @submit.prevent="save">
+            <div class="form-grid">
+              <label class="field">
+                <span class="teacher-label">姓名</span>
+                <input v-model="form.name" class="teacher-input" placeholder="如：张晓琳" />
+              </label>
+              <label class="field">
+                <span class="teacher-label">学院/部门</span>
+                <input v-model="form.department" class="teacher-input" placeholder="如：计算机学院" />
+              </label>
+              <label class="field">
+                <span class="teacher-label">专业</span>
+                <input v-model="form.major" class="teacher-input" placeholder="如：软件工程" />
+              </label>
+              <label class="field">
+                <span class="teacher-label">邮箱</span>
+                <input v-model="form.email" class="teacher-input" type="email" placeholder="name@school.edu.cn" />
+              </label>
+              <label class="field">
+                <span class="teacher-label">电话</span>
+                <input v-model="form.phone" class="teacher-input" placeholder="如：138****8888" />
+              </label>
+              <label class="field">
+                <span class="teacher-label">研究方向</span>
+                <input v-model="form.focus" class="teacher-input" placeholder="如：分布式系统、AI教育" />
+              </label>
+            </div>
+            <label class="field field-full">
+              <span class="teacher-label">个人简介</span>
+              <textarea v-model="form.biography" class="teacher-textarea" rows="5" placeholder="教学理念、科研方向、对学生的建议…" />
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="teacher-btn teacher-btn-primary" :disabled="saving">
+                {{ saving ? '保存中…' : '保存' }}
+              </button>
+            </div>
+            <p v-if="message" class="msg msg-ok">{{ message }}</p>
+            <p v-if="error" class="msg msg-err">{{ error }}</p>
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
+<style src="@/assets/teacher-layout.css"></style>
 <style scoped>
-.teacher-nav { position: fixed; top:0; left:0; right:0; z-index:100; background: rgba(255,255,255,.85); backdrop-filter: blur(20px) saturate(180%); border-bottom:1px solid rgba(0,0,0,.08); }
-.nav-container { max-width: 1400px; margin:0 auto; padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:56px; }
-.nav-logo { display:flex; align-items:center; gap:.75rem; font-weight:600; font-size:1.1rem; color:#1e293b; }
-.logo-icon { font-size:1.5rem; }
-.nav-links { display:flex; gap:.5rem; }
-.nav-link { display:flex; align-items:center; gap:.5rem; padding:.6rem 1.25rem; border-radius:10px; color:#64748b; text-decoration:none; font-weight:500; transition:all .2s cubic-bezier(.4,0,.2,1); position:relative; }
-.nav-link:hover { color:#3b82f6; background:rgba(59,130,246,.08); }
-.nav-link.active { color:#3b82f6; background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(99,102,241,.12)); }
-
-.teacher-profile { min-height:100vh; background: linear-gradient(180deg,#f8fafc 0%, #f1f5f9 100%); padding-top:56px; }
-.container { max-width: 1100px; margin:0 auto; padding:2rem; }
-.page-header h1 { margin:0 0 .25rem; }
-.card { background:#fff; border-radius:20px; padding:1.75rem; box-shadow:0 20px 50px rgba(15,23,42,.12); }
-.form { display:flex; flex-direction:column; gap:1.25rem; }
-.grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap:1rem; }
-.field { display:flex; flex-direction:column; gap:.5rem; }
-.input { padding:.7rem 1rem; border:1px solid #cbd5e1; border-radius:12px; }
-.textarea { padding:.8rem 1rem; border:1px solid #cbd5e1; border-radius:12px; resize:vertical; }
-.actions { display:flex; justify-content:flex-end; }
-.btn { border:none; border-radius:14px; padding:.7rem 1.4rem; font-weight:700; cursor:pointer; }
-.btn.primary { color:#fff; background: linear-gradient(135deg,#2563eb,#7c3aed); box-shadow:0 16px 32px rgba(79,70,229,.25); }
-.loading-state { text-align:center; padding:3rem; }
-.spinner { width:3rem; height:3rem; border:4px solid rgba(99,102,241,.25); border-top-color:#4f46e5; border-radius:999px; margin:0 auto 1rem; animation: spin .85s linear infinite; }
-.ok { color:#059669; }
-.err { color:#b91c1c; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+.field-full {
+  grid-column: 1 / -1;
+}
+.form-actions {
+  padding-top: 8px;
+}
+.msg {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.msg-ok { color: #34c759; }
+.msg-err { color: #bf4800; }
 </style>
-
-

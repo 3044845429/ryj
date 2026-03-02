@@ -67,6 +67,9 @@ public class JobPostingController {
         LambdaQueryWrapper<JobPosting> wrapper = new LambdaQueryWrapper<>();
         if (employerId != null) {
             wrapper.eq(JobPosting::getEmployerId, employerId);
+        } else {
+            // 学生端/公开列表：只展示招聘中的职位，按发布时间倒序
+            wrapper.eq(JobPosting::getStatus, JobPosting.Status.OPEN);
         }
         if (workType != null) {
             wrapper.eq(JobPosting::getWorkType, workType);
@@ -74,6 +77,7 @@ public class JobPostingController {
         if (keyword != null && !keyword.isBlank()) {
             wrapper.like(JobPosting::getTitle, keyword);
         }
+        wrapper.orderByDesc(JobPosting::getPublishedDate);
         Page<JobPosting> result = jobPostingService.page(new Page<>(page, size), wrapper);
         return ApiResponse.success(result);
     }

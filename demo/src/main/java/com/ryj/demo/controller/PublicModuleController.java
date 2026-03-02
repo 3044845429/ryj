@@ -1,6 +1,7 @@
 package com.ryj.demo.controller;
 
 import com.ryj.demo.common.ApiResponse;
+import com.ryj.demo.dto.PublicDynamicsResponse;
 import com.ryj.demo.dto.PublicOverviewResponse;
 import com.ryj.demo.dto.PublicOverviewResponse.HighlightModule;
 import com.ryj.demo.dto.PublicOverviewResponse.Hero;
@@ -40,6 +41,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -171,6 +175,34 @@ public class PublicModuleController {
                 .collect(Collectors.toList());
         response.setResources(resourceSummaries);
 
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 资讯动态列表（网上发布的各类动态讯息，供所有人浏览，无需登录）
+     */
+    @GetMapping("/dynamics")
+    public ApiResponse<PublicDynamicsResponse> dynamics(
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) String category) {
+        LambdaQueryWrapper<SystemNotification> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(category)) {
+            try {
+                SystemNotification.Category cat = SystemNotification.Category.valueOf(category.trim().toUpperCase());
+                wrapper.eq(SystemNotification::getCategory, cat);
+            } catch (IllegalArgumentException ignored) {
+                // 忽略无效分类
+            }
+        }
+        wrapper.orderByDesc(SystemNotification::getCreatedAt);
+        Page<SystemNotification> p = notificationService.page(new Page<>(page, size), wrapper);
+        PublicDynamicsResponse response = new PublicDynamicsResponse();
+        response.setRecords(p.getRecords().stream().map(this::toNotificationItem).collect(Collectors.toList()));
+        response.setTotal(p.getTotal());
+        response.setCurrent(p.getCurrent());
+        response.setSize(p.getSize());
+        response.setPages(p.getPages());
         return ApiResponse.success(response);
     }
 
