@@ -1,0 +1,9 @@
+E:\bs\f-bs\src\api\admin.ts
+E:\bs\f-bs\src\api\application.ts
+E:\bs\f-bs\src\api\employer.ts
+E:\bs\f-bs\src\api\employmentIntention.ts
+E:\bs\f-bs\src\api\guidance.ts
+E:\bs\f-bs\src\api\notification.ts
+E:\bs\f-bs\src\api\public.ts
+E:\bs\f-bs\src\api\student.ts
+E:\bs\f-bs\src\api\teacher.ts
