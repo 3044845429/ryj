@@ -1,12 +1,58 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { fetchStudentDashboard, type InterviewOverview } from '@/api/student'
 
-const interviews = ref<any[]>([])
+type InterviewItem = InterviewOverview & {
+  companyName?: string | null
+}
+
+const interviews = ref<InterviewItem[]>([])
 const loading = ref(false)
+const error = ref('')
+
+const loadInterviews = async () => {
+  error.value = ''
+  const userInfoStr = localStorage.getItem('userInfo')
+  if (!userInfoStr) {
+    error.value = '请先登录学生账号'
+    loading.value = false
+    return
+  }
+  let userId: number | null = null
+  try {
+    const userInfo = JSON.parse(userInfoStr)
+    if (userInfo.role !== 'STUDENT') {
+      error.value = '仅学生用户可以查看面试管理'
+      return
+    }
+    userId = userInfo.id ?? null
+  } catch {
+    error.value = '用户信息解析失败，请重新登录'
+    return
+  }
+  if (!userId) {
+    error.value = '缺少学生ID，请重新登录'
+    return
+  }
+
+  loading.value = true
+  try {
+    const dashboard = await fetchStudentDashboard(userId)
+    // 后端已在 StudentDashboardController 中组装了 interviews 列表
+    interviews.value = (dashboard.interviews || []).map((item) => ({
+      ...item,
+      // 当前 DTO 中未包含企业名称，这里预留字段，后续可在后端补充
+      companyName: null,
+    }))
+  } catch (e: any) {
+    error.value = e?.message || '加载面试数据失败'
+  } finally {
+    loading.value = false
+  }
+}
 
 onMounted(() => {
-  // TODO: 从后端加载面试数据
-  loading.value = false
+  loadInterviews()
 })
 
 const getStatusClass = (status: string) => {
@@ -38,6 +84,10 @@ const getStatusLabel = (status: string) => {
     <div class="content">
       <div v-if="loading" class="loading">加载中...</div>
       
+      <div v-if="error" class="error-message">
+        {{ error }}
+      </div>
+
       <div v-else-if="interviews.length === 0" class="empty-state">
         <div class="empty-icon">🎯</div>
         <h3>还没有面试安排</h3>
@@ -48,8 +98,8 @@ const getStatusLabel = (status: string) => {
         <div v-for="interview in interviews" :key="interview.id" class="interview-card">
           <div class="card-header">
             <div class="header-left">
-              <h3>{{ interview.jobTitle }}</h3>
-              <p class="company">{{ interview.companyName }}</p>
+              <h3>{{ interview.jobTitle || '未命名岗位' }}</h3>
+              <p v-if="interview.companyName" class="company">{{ interview.companyName }}</p>
             </div>
             <span :class="['status-badge', getStatusClass(interview.status)]">
               {{ getStatusLabel(interview.status) }}
